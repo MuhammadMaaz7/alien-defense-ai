@@ -1,95 +1,130 @@
 import pygame
 import pygame_gui
 import os
+import random
 
-# Initialize Pygame
+from station import Station
+from ui import create_ui_manager, create_info_panel, update_info_panel
+
 pygame.init()
 
 # Constants
-WIDTH, HEIGHT = 800, 600
+WIDTH, HEIGHT = 1200, 700
 FPS = 60
 
-# Setup window
+# Init window
 window = pygame.display.set_mode((WIDTH, HEIGHT))
-pygame.display.set_caption("Alien Defense - Space Stations")
+pygame.display.set_caption("Alien Defense - Random Stations")
 
-# Load and scale layered background images
+# Backgrounds
 layer_images = []
 for i in range(1, 4):
-    img_path = os.path.join("assets", f"layer_{i}.png")
-    img = pygame.image.load(img_path).convert_alpha()
+    path = os.path.join("assets", f"layer_{i}.png")
+    img = pygame.image.load(path).convert_alpha()
     img = pygame.transform.scale(img, (WIDTH, HEIGHT))
     layer_images.append(img)
 
-# Setup UI Manager
-manager = pygame_gui.UIManager((WIDTH, HEIGHT))
-
-# Load icons
+# Load images
 station_img = pygame.transform.scale(pygame.image.load("assets/station_1.png"), (150, 150))
 alien_img = pygame.transform.scale(pygame.image.load("assets/alien.png"), (35, 35))
 military_img = pygame.transform.scale(pygame.image.load("assets/military_yellow.png"), (50, 50))
+earth_base_img = pygame.transform.scale(pygame.image.load("assets/resource.png"), (200, 200))
 
-# Sample station data
-stations = [
-    {'name': 'Station Alpha', 'pos': (100, 150), 'population': 5000, 'has_aliens': True, 'has_military': True},
-    {'name': 'Station Beta', 'pos': (300, 350), 'population': 2000, 'has_aliens': False, 'has_military': True},
-    {'name': 'Station Gamma', 'pos': (450, 200), 'population': 0, 'has_aliens': True, 'has_military': False}
-]
+# Earth base position (top-right corner)
+earth_base_pos = (WIDTH - 215, 20)
 
-# Info panel for clicked station
-info_panel = pygame_gui.elements.UITextBox(
-    relative_rect=pygame.Rect((600, 50), (180, 300)),
-    html_text="Click a station",
-    manager=manager
-)
+# Setup UI
+manager = create_ui_manager((WIDTH, HEIGHT))
+info_panel = create_info_panel(manager)
+
+# Function to generate random non-overlapping station positions
+def generate_station_positions(count, margin=180):
+    positions = []
+    max_attempts = 500
+
+    # Define "forbidden" areas as pygame.Rects
+    forbidden_zones = [
+        pygame.Rect(20, 150, 180, 300),                       # Info panel
+        pygame.Rect(WIDTH - 215, 20, 200, 200)               # Earth base
+    ]
+
+    while len(positions) < count and max_attempts > 0:
+        x = random.randint(100, WIDTH - 200)
+        y = random.randint(50, HEIGHT - 200)
+        new_rect = pygame.Rect(x, y, 150, 150)  # Station size
+
+        # Check against other stations
+        too_close = False
+        for px, py in positions:
+            if abs(x - px) < margin and abs(y - py) < margin:
+                too_close = True
+                break
+
+        # Check against UI elements
+        for zone in forbidden_zones:
+            if new_rect.colliderect(zone):
+                too_close = True
+                break
+
+        if not too_close:
+            positions.append((x, y))
+
+        max_attempts -= 1
+
+    return positions
+
+# Generate stations
+station_count = random.randint(5, 8)
+positions = generate_station_positions(station_count)
+stations = []
+
+for i, pos in enumerate(positions):
+    name = f"Station {chr(65 + i)}"
+    population = random.randint(1000, 5000)
+    military = random.randint(0, 200)
+    aliens = random.randint(0, 30)
+    stations.append(Station(name, pos, population, military, aliens))
 
 # Clock
 clock = pygame.time.Clock()
+running = True
 
 # Game loop
-running = True
 while running:
-    time_delta = clock.tick(FPS) / 1000.0
+    dt = clock.tick(FPS) / 1000.0
 
-    # Draw all background layers
+    # Draw layers
     for layer in layer_images:
         window.blit(layer, (0, 0))
 
-    # Draw stations and their indicators
-    for station in stations:
-        x, y = station['pos']
-        window.blit(station_img, (x, y))
-        if station['has_aliens']:
-            window.blit(alien_img, (x + 25, y + 50))
-        if station['has_military']:
-            window.blit(military_img, (x + 40, y + 10))
+    # Draw Earth base
+    window.blit(earth_base_img, earth_base_pos)
 
-    # Event handling
+    # Draw stations
+    for station in stations:
+        x, y = station.pos
+        window.blit(station_img, (x, y))
+        if station.alien_count > 0:
+            window.blit(alien_img, (x + 30, y + 90))
+        if station.military_population > 0:
+            window.blit(military_img, (x + 70, y + 20))
+
+    # Handle events
     for event in pygame.event.get():
         if event.type == pygame.QUIT:
             running = False
 
-        # Mouse click on station
-        if event.type == pygame.MOUSEBUTTONDOWN:
+        elif event.type == pygame.MOUSEBUTTONDOWN:
             mx, my = pygame.mouse.get_pos()
             for station in stations:
-                x, y = station['pos']
-                if x <= mx <= x+150 and y <= my <= y+150:  # Station icon bounds
-                    info_text = f"""
-<b>{station['name']}</b><br>
-Population: {station['population']}<br>
-Aliens: {'Yes' if station['has_aliens'] else 'No'}<br>
-Military: {'Yes' if station['has_military'] else 'No'}<br>
-"""
-                    info_panel.set_text(info_text)
+                x, y, w, h = station.get_rect()
+                if x <= mx <= x + w and y <= my <= y + h:
+                    update_info_panel(info_panel, station.get_info_html())
 
         manager.process_events(event)
 
-    # Update and draw UI
-    manager.update(time_delta)
+    manager.update(dt)
     manager.draw_ui(window)
-
-    # Flip display
     pygame.display.flip()
 
 pygame.quit()
