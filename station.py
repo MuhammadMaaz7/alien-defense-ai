@@ -13,7 +13,7 @@ class Station:
         self.alien_count = alien_count
         self.damage = 0
         self.under_attack = False
-        self.distance_from_base = math.sqrt((pos[0]-1000)**2 + (pos[1]-100)**2)  # Distance from resource base
+        self.distance_from_base = int(math.sqrt((pos[0]-1000)**2 + (pos[1]-100)**2))  # Distance from resource base
 
     def get_rect(self):
         return (*self.pos, self.WIDTH, self.HEIGHT)

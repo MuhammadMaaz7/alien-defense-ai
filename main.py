@@ -6,8 +6,10 @@ import time
 import math
 from datetime import datetime, timedelta
 from station import Station
-from ui import create_ui_manager, create_info_panel, update_info_panel
+# from ui import create_ui_manager, create_info_panel, update_info_panel
+from ui import UIManager
 from game_logic import alien_attack, player_defend
+from ai import minimax
 from ai import minimax, evaluate_station
 pygame.init()
 
@@ -40,54 +42,59 @@ earth_base_pos = (WIDTH - 215, 20)
 earth_base = type('EarthBase', (), {'pos': earth_base_pos})()  # Simple object to represent base
 
 # Setup UI
-manager = create_ui_manager((WIDTH, HEIGHT))
-info_panel = create_info_panel(manager)
-status_panel = pygame_gui.elements.UITextBox(
-    relative_rect=pygame.Rect((20, 470), (250, 100)),
-    html_text="Player's Turn<br>Select a station to defend",
-    manager=manager
-)
-base_status_panel = pygame_gui.elements.UITextBox(
-    relative_rect=pygame.Rect((WIDTH - 250, 250), (230, 100)),
-    html_text="Base Resources:<br>Troops: 2000",
-    manager=manager
-)
-ai_suggestion_panel = pygame_gui.elements.UITextBox(
-    relative_rect=pygame.Rect((WIDTH - 250, 370), (230, 100)),
-    html_text="AI Suggestion:<br>None",
-    manager=manager
-)
-timer_panel = pygame_gui.elements.UITextBox(
-    relative_rect=pygame.Rect((WIDTH - 250, 150), (230, 80)),
-    html_text="Time Remaining: 05:00",
-    manager=manager
-)
-troop_input = pygame_gui.elements.UITextEntryLine(
-    relative_rect=pygame.Rect((WIDTH - 250, 480), (100, 30)),
-    manager=manager
-)
-troop_input.set_text("0")
-send_button = pygame_gui.elements.UIButton(
-    relative_rect=pygame.Rect((WIDTH - 140, 480), (120, 30)),
-    text="Send Troops",
-    manager=manager
-)
+# manager = create_ui_manager((WIDTH, HEIGHT))
+# info_panel = create_info_panel(manager)
+# status_panel = pygame_gui.elements.UITextBox(
+#     relative_rect=pygame.Rect((20, 470), (250, 100)),
+#     html_text="Player's Turn<br>Select a station to defend",
+#     manager=manager
+# )
+# base_status_panel = pygame_gui.elements.UITextBox(
+#     relative_rect=pygame.Rect((WIDTH - 250, 250), (230, 100)),
+#     html_text="Base Resources:<br>Troops: 2000",
+#     manager=manager
+# )
+# ai_suggestion_panel = pygame_gui.elements.UITextBox(
+#     relative_rect=pygame.Rect((WIDTH - 250, 370), (230, 100)),
+#     html_text="AI Suggestion:<br>None",
+#     manager=manager
+# )
+# timer_panel = pygame_gui.elements.UITextBox(
+#     relative_rect=pygame.Rect((WIDTH - 250, 150), (230, 80)),
+#     html_text="Time Remaining: 05:00",
+#     manager=manager
+# )
+# troop_input = pygame_gui.elements.UITextEntryLine(
+#     relative_rect=pygame.Rect((WIDTH - 250, 480), (100, 30)),
+#     manager=manager
+# )
+# troop_input.set_text("0")
+# send_button = pygame_gui.elements.UIButton(
+#     relative_rect=pygame.Rect((WIDTH - 140, 480), (120, 30)),
+#     text="Send Troops",
+#     manager=manager
+# )
+
+ui = UIManager((WIDTH, HEIGHT))
+
 
 # Generate station positions with minimum distances
-def generate_station_positions(count, margin=180):
+# Updated function
+def generate_station_positions(count, margin=180, forbidden_zones=None):
+    if forbidden_zones is None:
+        forbidden_zones = [
+            pygame.Rect(20, 150, 180, 300),  # Info panel area
+            pygame.Rect(WIDTH - 215, 20, 200, 200)  # Earth base area
+        ]
+
     positions = []
     max_attempts = 500
-    forbidden_zones = [
-        pygame.Rect(20, 150, 180, 300),  # Info panel area
-        pygame.Rect(WIDTH - 215, 20, 200, 200)  # Earth base area
-    ]
 
     while len(positions) < count and max_attempts > 0:
         x = random.randint(100, WIDTH - 200)
         y = random.randint(50, HEIGHT - 200)
         new_rect = pygame.Rect(x, y, 150, 150)
 
-        # Check distance from existing stations and UI elements
         too_close = any(math.sqrt((x - px)**2 + (y - py)**2) < margin for px, py in positions) or \
                     any(new_rect.colliderect(zone) for zone in forbidden_zones)
 
@@ -97,9 +104,15 @@ def generate_station_positions(count, margin=180):
 
     return positions
 
-# Create stations with balanced initial values
 station_count = random.randint(6, 9)
-positions = generate_station_positions(station_count)
+
+# Correct usage
+positions = generate_station_positions(
+    station_count,
+    margin=180,
+    forbidden_zones=ui.get_forbidden_zones()
+)
+
 stations = []
 
 for i, pos in enumerate(positions):
@@ -186,7 +199,8 @@ while running:
         if event.type == pygame.QUIT:
             running = False
 
-        manager.process_events(event)
+        # manager.process_events(event)
+        ui.process_events(event)
 
         if event.type == pygame.MOUSEBUTTONDOWN and turn == "player" and not game_over:
             mx, my = pygame.mouse.get_pos()
@@ -194,42 +208,68 @@ while running:
                 x, y, w, h = station.get_rect()
                 if x <= mx <= x + w and y <= my <= y + h:
                     selected_station = station
-                    update_info_panel(info_panel, selected_station.get_info_html())
+                    ui.update_info({
+                        'name': selected_station.name,
+                        'under_attack': selected_station.under_attack,
+                        'population': selected_station.population,
+                        'military': selected_station.military_population,
+                        'aliens': selected_station.alien_count,
+                        'damage': selected_station.damage,
+                        'distance': selected_station.distance_from_base
+                    })
+                    # ui.add_click_effect(selected_station.pos)  # Visual feedback
                     break
 
-        if event.type == pygame_gui.UI_BUTTON_PRESSED and event.ui_element == send_button and turn == "player" and not game_over:
+        if event.type == pygame_gui.UI_BUTTON_PRESSED and event.ui_element == ui.elements['send_button'] and turn == "player" and not game_over:
             if selected_station:
                 try:
-                    reinforcements = int(troop_input.get_text())
+                    reinforcements = int(ui.elements['troop_input'].get_text())
                     if reinforcements > base_troops:
-                        status_panel.set_text("Not enough troops at base.")
+                        ui.update_status("Not enough troops at base.")
                     elif reinforcements <= 0:
-                        status_panel.set_text("Enter a positive number of troops.")
+                        ui.update_status("Enter a positive number of troops.")
                     else:
                         if player_defend(selected_station, reinforcements, earth_base):
                             base_troops -= reinforcements
-                            update_info_panel(info_panel, selected_station.get_info_html())
-                            status_panel.set_text(f"Sent {reinforcements} troops to {selected_station.name}")
+                            ui.update_info({
+                                'name': selected_station.name,
+                                'under_attack': selected_station.under_attack,
+                                'population': selected_station.population,
+                                'military': selected_station.military_population,
+                                'aliens': selected_station.alien_count,
+                                'damage': selected_station.damage,
+                                'distance': selected_station.distance_from_base
+                            })
+                            ui.update_status(f"Sent {reinforcements} troops to {selected_station.name}")
+                            # ui.add_click_effect(selected_station.pos)  # Visual feedback
+                            station_center = (
+                                station.pos[0] + Station.WIDTH//2,
+                                station.pos[1] + Station.HEIGHT//2
+                            )
+                            ui.add_bomb_effect(station_center)
+                            
                             turn = "ai"
                             ai_delay_timer = time.time() + 1  # 1 second delay for AI turn
                         else:
-                            status_panel.set_text("Defense failed - no aliens at station")
+                            ui.update_status("Defense failed - no aliens at station")
                 except ValueError:
-                    status_panel.set_text("Enter a valid number of troops.")
+                    ui.update_status("Enter a valid number of troops.")
 
-    manager.update(dt)
+    ui.update(dt)
+
 
     # Update timer
     time_elapsed = (datetime.now() - game_start_time).total_seconds()
     time_remaining = max(0, GAME_DURATION - time_elapsed)
-    timer_panel.set_text(f"Time Remaining: {format_time(time_remaining)}")
+    ui.update_timer(int(time_remaining))
+
 
     # Check game over conditions
     if not game_over and check_game_over():
         if player_won:
-            status_panel.set_text("VICTORY! You successfully defended Earth!")
+            ui.update_status("VICTORY! You successfully defended Earth!")
         else:
-            status_panel.set_text("DEFEAT! The aliens have overrun our stations!")
+            ui.update_status("DEFEAT! The aliens have overrun our stations!")
         continue
 
     # AI Turn
@@ -248,23 +288,39 @@ while running:
                 if len(last_ai_attacks) > MAX_AI_MEMORY:
                     last_ai_attacks.pop(0)
                 
-                update_info_panel(info_panel, ai_station.get_info_html())
-                status_panel.set_text(f"AI attacked {ai_station.name}")
+                # Update station info and status
+                ui.update_info({
+                    'name': ai_station.name,
+                    'under_attack': ai_station.under_attack,
+                    'population': ai_station.population,
+                    'military': ai_station.military_population,
+                    'aliens': ai_station.alien_count,
+                    'damage': ai_station.damage,
+                    'distance': ai_station.distance_from_base
+                })
+                ui.update_status(f"AI attacked {ai_station.name}")
                 last_ai_attack_station = ai_station
+                # ui.add_click_effect(ai_station.pos)  # Visual feedback for attack
+                # Add bomb effect at the station's center
+                station_center = (
+                    ai_station.pos[0] + Station.WIDTH//2,
+                    ai_station.pos[1] + Station.HEIGHT//2
+                )
+                ui.add_bomb_effect(station_center)
             else:
-                status_panel.set_text("AI attack failed")
+                ui.update_status("AI attack failed")
         else:
-            status_panel.set_text("AI is regrouping forces")
+            ui.update_status("AI is regrouping forces")
         
         turn = "player"
 
     # Update base status
-    base_status_panel.set_text(f"Base Resources:<br>Troops: {base_troops}")
+    ui.update_base_resources(base_troops)
 
     # Update AI suggestion for player
     suggested_station, _ = minimax(stations, 4, True, float('-inf'), float('inf'), earth_base, last_ai_attacks)
     if suggested_station:
-        ai_suggestion_panel.set_text(f"AI Suggestion:<br>Defend {suggested_station.name}<br>Score: {evaluate_station(suggested_station, True, earth_base, last_ai_attacks):.1f}")
+        ui.update_ai_suggestion(suggested_station.name, evaluate_station(suggested_station, True, earth_base, last_ai_attacks))
 
     # Draw background
     for layer in layer_images:
@@ -322,7 +378,8 @@ while running:
         summary = font_sm.render(f"Humans: {humans} | Aliens: {aliens}", True, (255, 255, 255))
         window.blit(summary, (WIDTH//2 - 100, HEIGHT//2 + 50))
 
-    manager.draw_ui(window)
+    ui.draw(window)
+    ui.draw_effects(window) 
     pygame.display.flip()
 
 pygame.quit()
