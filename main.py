@@ -6,10 +6,8 @@ import time
 import math
 from datetime import datetime, timedelta
 from station import Station
-# from ui import create_ui_manager, create_info_panel, update_info_panel
 from ui import UIManager
 from game_logic import alien_attack, player_defend
-from ai import minimax
 from ai import minimax, evaluate_station
 pygame.init()
 
@@ -39,47 +37,11 @@ earth_base_img = pygame.transform.scale(pygame.image.load("assets/resource.png")
 
 # Earth base position and representation
 earth_base_pos = (WIDTH - 215, 20)
-earth_base = type('EarthBase', (), {'pos': earth_base_pos})()  # Simple object to represent base
-
-# Setup UI
-# manager = create_ui_manager((WIDTH, HEIGHT))
-# info_panel = create_info_panel(manager)
-# status_panel = pygame_gui.elements.UITextBox(
-#     relative_rect=pygame.Rect((20, 470), (250, 100)),
-#     html_text="Player's Turn<br>Select a station to defend",
-#     manager=manager
-# )
-# base_status_panel = pygame_gui.elements.UITextBox(
-#     relative_rect=pygame.Rect((WIDTH - 250, 250), (230, 100)),
-#     html_text="Base Resources:<br>Troops: 2000",
-#     manager=manager
-# )
-# ai_suggestion_panel = pygame_gui.elements.UITextBox(
-#     relative_rect=pygame.Rect((WIDTH - 250, 370), (230, 100)),
-#     html_text="AI Suggestion:<br>None",
-#     manager=manager
-# )
-# timer_panel = pygame_gui.elements.UITextBox(
-#     relative_rect=pygame.Rect((WIDTH - 250, 150), (230, 80)),
-#     html_text="Time Remaining: 05:00",
-#     manager=manager
-# )
-# troop_input = pygame_gui.elements.UITextEntryLine(
-#     relative_rect=pygame.Rect((WIDTH - 250, 480), (100, 30)),
-#     manager=manager
-# )
-# troop_input.set_text("0")
-# send_button = pygame_gui.elements.UIButton(
-#     relative_rect=pygame.Rect((WIDTH - 140, 480), (120, 30)),
-#     text="Send Troops",
-#     manager=manager
-# )
+earth_base = type('EarthBase', (), {'pos': earth_base_pos})()
 
 ui = UIManager((WIDTH, HEIGHT))
 
-
 # Generate station positions with minimum distances
-# Updated function
 def generate_station_positions(count, margin=180, forbidden_zones=None):
     if forbidden_zones is None:
         forbidden_zones = [
@@ -105,8 +67,6 @@ def generate_station_positions(count, margin=180, forbidden_zones=None):
     return positions
 
 station_count = random.randint(6, 9)
-
-# Correct usage
 positions = generate_station_positions(
     station_count,
     margin=180,
@@ -117,14 +77,15 @@ stations = []
 
 for i, pos in enumerate(positions):
     name = f"Station {chr(65 + i)}"
-    population = random.randint(2000, 5000)
-    military = random.randint(100, 300) if random.random() < 0.7 else random.randint(0, 50)
-    aliens = random.randint(15, 40) if random.random() < 0.7 else random.randint(0, 10)
+    # When creating stations:
+    population = random.randint(200, 500)
+    military = random.randint(10, 50) if random.random() < 0.7 else random.randint(0, 10)
+    aliens = random.randint(15, 30) if random.random() < 0.7 else random.randint(0, 5)
     stations.append(Station(name, pos, population, military, aliens))
     stations[-1].update_damage()
 
 # Initialize base resources
-base_troops = 2000
+base_troops = 500
 
 # Game state
 game_start_time = datetime.now()
@@ -199,7 +160,6 @@ while running:
         if event.type == pygame.QUIT:
             running = False
 
-        # manager.process_events(event)
         ui.process_events(event)
 
         if event.type == pygame.MOUSEBUTTONDOWN and turn == "player" and not game_over:
@@ -217,7 +177,6 @@ while running:
                         'damage': selected_station.damage,
                         'distance': selected_station.distance_from_base
                     })
-                    # ui.add_click_effect(selected_station.pos)  # Visual feedback
                     break
 
         if event.type == pygame_gui.UI_BUTTON_PRESSED and event.ui_element == ui.elements['send_button'] and turn == "player" and not game_over:
@@ -243,8 +202,8 @@ while running:
                             ui.update_status(f"Sent {reinforcements} troops to {selected_station.name}")
                             # ui.add_click_effect(selected_station.pos)  # Visual feedback
                             station_center = (
-                                station.pos[0] + Station.WIDTH//2,
-                                station.pos[1] + Station.HEIGHT//2
+                                selected_station.pos[0] + Station.WIDTH//2,
+                                selected_station.pos[1] + Station.HEIGHT//2
                             )
                             ui.add_bomb_effect(station_center)
                             
@@ -282,7 +241,7 @@ while running:
         ai_station, _ = minimax(stations, 4, False, float('-inf'), float('inf'), earth_base, last_ai_attacks)
         
         if ai_station and ai_station.population > 0 and ai_station.alien_count > 0:
-            if alien_attack(ai_station, earth_base):
+            if alien_attack(ai_station):
                 # Record this attack for AI memory
                 last_ai_attacks.append(ai_station)
                 if len(last_ai_attacks) > MAX_AI_MEMORY:
