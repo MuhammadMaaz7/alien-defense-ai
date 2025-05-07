@@ -2,7 +2,7 @@ import random
 import math
 
 # Combat multipliers
-ALIEN_STRENGTH = 1.8  # Each alien is worth 1.8 military units
+ALIEN_STRENGTH = 1.5  # Each alien is worth 1.5 military units
 MILITARY_STRENGTH = 1.0  
 CIVILIAN_STRENGTH = 0.2
 DISTANCE_PENALTY = 2500
@@ -11,7 +11,7 @@ DISTANCE_PENALTY = 2500
 MAX_POPULATION = 1000
 MIN_POPULATION = 0
 MAX_MILITARY = 100
-MAX_ALIENS = 50
+MAX_ALIENS = 200
 
 def calculate_combat_strength(attackers, defenders, has_military=True):
     """Calculate relative combat strength with diminishing returns"""

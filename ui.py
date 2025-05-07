@@ -89,12 +89,14 @@ class UIManager:
         """Update base resource display"""
         self.elements['base_status'].set_text(f"Base Resources:<br>Troops: {troops}")
 
-    def update_ai_suggestion(self, station_name: str, score: float = None):
-        """Update AI suggestion with optional score"""
-        text = f"AI Suggestion:<br>Defend {station_name}"
-        if score is not None:
-            text += f"<br>Priority: {score:.1f}"
-        self.elements['ai_suggestion'].set_text(text)
+    def update_ai_suggestion(self, station_name: str, score: float = None,station_aliens: int = None):
+        
+        if(station_aliens > 0):
+            """Update AI suggestion with optional score"""
+            text = f"AI Suggestion:<br>Defend {station_name}"
+            if score is not None:
+                text += f"<br>Priority: {score:.1f}"
+            self.elements['ai_suggestion'].set_text(text)
 
     def update_timer(self, seconds: int):
         """Update the game timer display"""

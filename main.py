@@ -17,6 +17,12 @@ FPS = 60
 GAME_DURATION = 300  # 5 minutes in seconds
 MAX_AI_MEMORY = 3  # Remember last 3 attacks
 
+#Fonst
+pygame.init()
+station_font = pygame.font.SysFont("arial", 28, bold=True) 
+# name_surface = station_font.render(tation.name, True, (255, 255, 255))
+
+
 # Initialize window
 window = pygame.display.set_mode((WIDTH, HEIGHT))
 pygame.display.set_caption("Alien Defense - Strategic Stations")
@@ -80,7 +86,7 @@ for i, pos in enumerate(positions):
     # When creating stations:
     population = random.randint(200, 500)
     military = random.randint(10, 50) if random.random() < 0.7 else random.randint(0, 10)
-    aliens = random.randint(15, 30) if random.random() < 0.7 else random.randint(0, 5)
+    aliens = random.randint(50, 70) if random.random() < 0.7 else random.randint(0, 5) #Graeter cuz we are already sending troops too
     stations.append(Station(name, pos, population, military, aliens))
     stations[-1].update_damage()
 
@@ -98,7 +104,8 @@ clock = pygame.time.Clock()
 running = True
 
 # Game loop state
-turn = "player"
+turn = "ai"
+ai_attack_count = 0
 selected_station = None
 ai_delay_timer = 0
 last_ai_attack_station = None
@@ -151,6 +158,25 @@ def draw_station_connections():
             pygame.draw.line(window, (255, 100, 100, 150), 
                            (station.pos[0] + 75, station.pos[1] + 75),
                            (earth_base_pos[0] + 100, earth_base_pos[1] + 100), 2)
+            
+def minor_alien_attack(station):
+    """A light symbolic attack used in the first AI wave."""
+    if station.population > 0 and station.alien_count > 0:
+        factor=random.uniform(0.1, 0.15)  # Light attack factor
+        lost = int(factor * station.population)
+        station.population -= lost
+
+        # Update damage % based on population lost
+        station.update_damage()
+        
+        damage = random.randint(1, 3)  # Very light damage
+        station.population = max(0, station.population - damage)
+        station.under_attack = True
+        station.original_population = station.population
+        # station.damage = damage
+        # station.update_damage()
+        return True
+    return False
 
 # Game Loop
 while running:
@@ -209,8 +235,8 @@ while running:
                             
                             turn = "ai"
                             ai_delay_timer = time.time() + 1  # 1 second delay for AI turn
-                        else:
-                            ui.update_status("Defense failed - no aliens at station")
+                        # else:
+                        #     ui.update_status("Defense failed - no aliens at station")
                 except ValueError:
                     ui.update_status("Enter a valid number of troops.")
 
@@ -231,47 +257,191 @@ while running:
             ui.update_status("DEFEAT! The aliens have overrun our stations!")
         continue
 
-    # AI Turn
-    if turn == "ai" and time.time() > ai_delay_timer and not game_over:
-        # Reset attack flags
-        for s in stations:
-            s.under_attack = False
+    # # AI Turn
+    # if turn == "ai" and time.time() > ai_delay_timer and not game_over:
+    #     # Reset attack flags
+    #     for s in stations:
+    #         s.under_attack = False
             
-        # Get AI decision with memory of last attacks
-        ai_station, _ = minimax(stations, 4, False, float('-inf'), float('inf'), earth_base, last_ai_attacks)
+    #     # Get AI decision with memory of last attacks
+    #     ai_station, _ = minimax(stations, 4, False, float('-inf'), float('inf'), earth_base, last_ai_attacks)
         
-        if ai_station and ai_station.population > 0 and ai_station.alien_count > 0:
-            if alien_attack(ai_station):
-                # Record this attack for AI memory
-                last_ai_attacks.append(ai_station)
-                if len(last_ai_attacks) > MAX_AI_MEMORY:
-                    last_ai_attacks.pop(0)
+    #     if ai_station and ai_station.population > 0 and ai_station.alien_count > 0:
+    #         if alien_attack(ai_station):
+    #             # Record this attack for AI memory
+    #             last_ai_attacks.append(ai_station)
+    #             if len(last_ai_attacks) > MAX_AI_MEMORY:
+    #                 last_ai_attacks.pop(0)
                 
-                # Update station info and status
-                ui.update_info({
-                    'name': ai_station.name,
-                    'under_attack': ai_station.under_attack,
-                    'population': ai_station.population,
-                    'military': ai_station.military_population,
-                    'aliens': ai_station.alien_count,
-                    'damage': ai_station.damage,
-                    'distance': ai_station.distance_from_base
-                })
-                ui.update_status(f"AI attacked {ai_station.name}")
-                last_ai_attack_station = ai_station
-                # ui.add_click_effect(ai_station.pos)  # Visual feedback for attack
-                # Add bomb effect at the station's center
-                station_center = (
-                    ai_station.pos[0] + Station.WIDTH//2,
-                    ai_station.pos[1] + Station.HEIGHT//2
-                )
-                ui.add_bomb_effect(station_center)
-            else:
-                ui.update_status("AI attack failed")
-        else:
-            ui.update_status("AI is regrouping forces")
+    #             # Update station info and status
+    #             ui.update_info({
+    #                 'name': ai_station.name,
+    #                 'under_attack': ai_station.under_attack,
+    #                 'population': ai_station.population,
+    #                 'military': ai_station.military_population,
+    #                 'aliens': ai_station.alien_count,
+    #                 'damage': ai_station.damage,
+    #                 'distance': ai_station.distance_from_base
+    #             })
+    #             ui.update_status(f"AI attacked {ai_station.name}")
+    #             last_ai_attack_station = ai_station
+    #             # ui.add_click_effect(ai_station.pos)  # Visual feedback for attack
+    #             # Add bomb effect at the station's center
+    #             station_center = (
+    #                 ai_station.pos[0] + Station.WIDTH//2,
+    #                 ai_station.pos[1] + Station.HEIGHT//2
+    #             )
+    #             ui.add_bomb_effect(station_center)
+    #         else:
+    #             ui.update_status("AI attack failed")
+    #     else:
+    #         ui.update_status("AI is regrouping forces")
         
-        turn = "player"
+    #     turn = "player"
+    
+    # if turn == "ai" and time.time() > ai_delay_timer and not game_over and ai_attack_count==0:
+        
+    #     # Reset attack flags
+    #     for s in stations:
+    #         s.under_attack = False
+
+    #     # Get AI decision with memory of last attacks
+    #     ai_station, _ = minimax(stations, 4, False, float('-inf'), float('inf'), earth_base, last_ai_attacks)
+
+    #     # Find all valid attack targets
+    #     valid_targets = [s for s in stations if s.population > 0 and s.alien_count > 0]
+
+    #     # Fallback if minimax fails or gives invalid target
+    #     if (not ai_station or
+    #         ai_station.population <= 0 or
+    #         ai_station.alien_count <= 0 or
+    #         ai_station not in valid_targets):
+
+    #         if len(valid_targets) == 1:
+    #             ai_station = valid_targets[0]  # Only one valid target: must attack it
+    #         elif len(valid_targets) > 1:
+    #             ai_station = random.choice(valid_targets)  # Random fallback target
+    #         else:
+    #             ai_station = None  # No valid targets left
+
+    #     if ai_station:
+    #         if alien_attack(ai_station):
+    #             # Record this attack for AI memory
+    #             last_ai_attacks.append(ai_station)
+    #             if len(last_ai_attacks) > MAX_AI_MEMORY:
+    #                 last_ai_attacks.pop(0)
+
+    #             # Update station info and status
+    #             ui.update_info({
+    #                 'name': ai_station.name,
+    #                 'under_attack': ai_station.under_attack,
+    #                 'population': ai_station.population,
+    #                 'military': ai_station.military_population,
+    #                 'aliens': ai_station.alien_count,
+    #                 'damage': ai_station.damage,
+    #                 'distance': ai_station.distance_from_base
+    #             })
+    #             ui.update_status(f"AI attacked {ai_station.name}")
+    #             last_ai_attack_station = ai_station
+
+    #             # Add bomb effect
+    #             station_center = (
+    #                 ai_station.pos[0] + Station.WIDTH // 2,
+    #                 ai_station.pos[1] + Station.HEIGHT // 2
+    #             )
+    #             ui.add_bomb_effect(station_center)
+    #         else:
+    #             ui.update_status("AI attack failed")
+    #     else:
+    #         ui.update_status("AI is regrouping forces")
+
+    #     turn = "player"
+    
+    if turn == "ai" and time.time() > ai_delay_timer and not game_over:
+            
+        if ai_attack_count == 0:
+            # Initial AI turn: soft attack on every station that has aliens
+            for s in stations:
+                if s.population > 0 and s.alien_count > 0:
+                    if minor_alien_attack(s):  # Use soft attack
+                        last_ai_attacks.append(s)
+                        if len(last_ai_attacks) > MAX_AI_MEMORY:
+                            last_ai_attacks.pop(0)
+                        
+                        ui.update_info({
+                            'name': s.name,
+                            'under_attack': s.under_attack,
+                            'population': s.population,
+                            'military': s.military_population,
+                            'aliens': s.alien_count,
+                            'damage': s.damage,
+                            'distance': s.distance_from_base
+                        })
+                        ui.update_status(f"AI lightly attacked {s.name} (initial wave)")
+
+                        station_center = (
+                            s.pos[0] + Station.WIDTH // 2,
+                            s.pos[1] + Station.HEIGHT // 2
+                        )
+                        ui.add_bomb_effect(station_center)
+            
+            ai_attack_count += 1
+            turn = "player"
+            
+        else:
+            # Reset attack flags
+            for s in stations:
+                s.under_attack = False
+
+            # Get AI decision with memory of last attacks
+            ai_station, _ = minimax(stations, 4, False, float('-inf'), float('inf'), earth_base, last_ai_attacks)
+
+            # Find all valid attack targets
+            valid_targets = [s for s in stations if s.population > 0 and s.alien_count > 0]
+
+            # Fallback if minimax fails or gives invalid target
+            if (not ai_station or
+                ai_station.population <= 0 or
+                ai_station.alien_count <= 0 or
+                ai_station not in valid_targets):
+
+                if len(valid_targets) == 1:
+                    ai_station = valid_targets[0]  # Only one valid target: must attack it
+                elif len(valid_targets) > 1:
+                    ai_station = random.choice(valid_targets)  # Random fallback target
+                else:
+                    ai_station = None  # No valid targets left
+
+            if ai_station:
+                if alien_attack(ai_station):
+                    last_ai_attacks.append(ai_station)
+                    if len(last_ai_attacks) > MAX_AI_MEMORY:
+                        last_ai_attacks.pop(0)
+
+                    ui.update_info({
+                        'name': ai_station.name,
+                        'under_attack': ai_station.under_attack,
+                        'population': ai_station.population,
+                        'military': ai_station.military_population,
+                        'aliens': ai_station.alien_count,
+                        'damage': ai_station.damage,
+                        'distance': ai_station.distance_from_base
+                    })
+                    ui.update_status(f"AI attacked {ai_station.name}")
+                    last_ai_attack_station = ai_station
+
+                    station_center = (
+                        ai_station.pos[0] + Station.WIDTH // 2,
+                        ai_station.pos[1] + Station.HEIGHT // 2
+                    )
+                    ui.add_bomb_effect(station_center)
+                else:
+                    ui.update_status("AI attack failed")
+            else:
+                ui.update_status("AI is regrouping forces")
+
+            turn = "player"
+
 
     # Update base status
     ui.update_base_resources(base_troops)
@@ -279,7 +449,7 @@ while running:
     # Update AI suggestion for player
     suggested_station, _ = minimax(stations, 4, True, float('-inf'), float('inf'), earth_base, last_ai_attacks)
     if suggested_station:
-        ui.update_ai_suggestion(suggested_station.name, evaluate_station(suggested_station, True, earth_base, last_ai_attacks))
+        ui.update_ai_suggestion(suggested_station.name, evaluate_station(suggested_station, True, earth_base, last_ai_attacks), suggested_station.alien_count)
 
     # Draw background
     for layer in layer_images:
@@ -294,6 +464,11 @@ while running:
     for station in stations:
         x, y = station.pos
         window.blit(station_img, (x, y))
+        
+        # Draw station name above the node
+        name_surface = station_font.render(station.name, True, (255, 255, 255))
+        name_rect = name_surface.get_rect(center=(x + Station.WIDTH // 2, y - 20))
+        window.blit(name_surface, name_rect)
         
         # Draw attack indicator
         if station == last_ai_attack_station:

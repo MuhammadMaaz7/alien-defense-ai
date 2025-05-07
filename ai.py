@@ -6,53 +6,49 @@ from station import Station
 last_attacks = []
 MAX_AI_MEMORY = 3
 
-def evaluate_station(station: Station, is_player: bool, base_station, memory_attacks=None) -> float:
-    """Enhanced evaluation function with better weights
-    
-    Args:
-        station: The station to evaluate
-        is_player: True if evaluating for player, False for AI
-        base_station: Reference to the base station for distance calculations
-        memory_attacks: List of recently attacked stations (optional)
-    
-    Returns:
-        float: Evaluation score (higher is better for the specified player)
-    """
+def evaluate_station(station: Station, is_player: bool, base_station, memory_attacks=None) -> int:
+    """Priority evaluation function that always returns a positive integer (≥1)."""
     global last_attacks
-    
+
     # Use provided memory if available, otherwise use global
     recent_attacks = memory_attacks if memory_attacks is not None else last_attacks
-    
-    # Calculate distance penalty (normalized 0-1)
+
+    # Calculate distance penalty (normalized between 0 and 1)
     if not hasattr(station, 'distance_from_base') or station.distance_from_base == 0:
-        # Calculate distance if not already set
         dx = station.pos[0] - base_station.pos[0]
         dy = station.pos[1] - base_station.pos[1]
-        distance = math.sqrt(dx*dx + dy*dy)
+        distance = math.sqrt(dx * dx + dy * dy)
         distance_penalty = distance / 1500
     else:
         distance_penalty = station.distance_from_base / 1500
-    
+
+    distance_penalty = min(max(distance_penalty, 0), 1)
+
+    # Evaluation score before clamping
     if is_player:
-        # Defense heuristic weights
-        return (
-            (station.population / 800) * 5.0 +      # Population value (0-6.25)
-            (station.alien_count * 2.5) -           # Alien threat (higher = more important to defend)
-            (station.military_population * 0.5) +   # Existing defense (more military = less need to defend)
-            (station.damage * 1.2) -                # Urgency (higher damage = more important)
-            (distance_penalty * 1.8) -              # Distance penalty (farther = less valuable)
-            (40 if station in recent_attacks else 0)  # Recently attacked penalty
+        raw_score = (
+            (station.population / 800) * 5.0 +
+            (station.alien_count * 3.0) +
+            (station.damage * 1.5) -
+            (station.military_population * 0.3) -
+            (distance_penalty * 2.0) -
+            (30 if station in recent_attacks else 0)
         )
     else:
-        # Attack heuristic weights
-        return (
-            (station.population / 600) * 5.0 -      # Target value (higher pop = better target)
-            (station.military_population * 2.8) +   # Defense resistance (more military = harder to attack)
-            (station.alien_count * 1.8) -           # Existing forces (more aliens = less need to attack)
-            (station.damage * 0.7) -                # Already damaged (more damage = less valuable)
-            (distance_penalty * 1.2) +              # Distance cost (farther = more costly)
-            (25 if station in recent_attacks else 0)  # Recent attack bonus
+        raw_score = (
+            (station.population / 600) * 5.0 -
+            (station.military_population * 2.5) +
+            (station.alien_count * 2.0) -
+            (station.damage * 0.8) -
+            (distance_penalty * 1.5) +
+            (20 if station in recent_attacks else 0)
         )
+
+    # Ensure result is a positive integer ≥ 1
+    priority_score = max(1, round(raw_score))
+
+    return priority_score
+
 
 def minimax(stations: List[Station], depth: int, is_maximizing: bool,
            alpha: float, beta: float, base_station, memory_attacks=None) -> Tuple[Optional[Station], float]:
