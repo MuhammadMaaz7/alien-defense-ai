@@ -5,11 +5,7 @@ class Station:
     WIDTH = 150
     HEIGHT = 150
 
-    # Class-level font for rendering names
-    #font = pygame.font.SysFont("arial", 28, bold=True)
-
     def __init__(self, name, pos, population, military_population, alien_count):
-        #self.font = pygame.font.SysFont("arial", 28, bold=True)
         self.name = name
         self.pos = pos
         self.original_population = population
@@ -21,10 +17,8 @@ class Station:
         self.distance_from_base = int(math.sqrt((pos[0] - 1000)**2 + (pos[1] - 100)**2))  # Distance from resource base
 
     def draw(self, surface):
-        # Draw the station node (e.g., a rectangle)
         pygame.draw.rect(surface, (100, 100, 255), (*self.pos, Station.WIDTH, Station.HEIGHT))
 
-        # Draw the station name above the node
         name_surface = Station.font.render(self.name, True, (255, 255, 255))
         name_rect = name_surface.get_rect(center=(self.pos[0] + Station.WIDTH // 2, self.pos[1] - 20))
         surface.blit(name_surface, name_rect)

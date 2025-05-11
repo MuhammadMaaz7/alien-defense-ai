@@ -4,30 +4,24 @@ import os
 import random
 import time
 import math
-from datetime import datetime, timedelta
+from datetime import datetime
 from station import Station
 from ui import UIManager
 from game_logic import alien_attack, player_defend
 from ai import minimax, evaluate_station
 pygame.init()
 
-# Constants
 WIDTH, HEIGHT = 1200, 700
 FPS = 60
-GAME_DURATION = 300  # 5 minutes in seconds
-MAX_AI_MEMORY = 3  # Remember last 3 attacks
+GAME_DURATION = 300
+MAX_AI_MEMORY = 3
 
 #Fonst
 pygame.init()
 station_font = pygame.font.SysFont("arial", 28, bold=True) 
-# name_surface = station_font.render(tation.name, True, (255, 255, 255))
-
-
-# Initialize window
 window = pygame.display.set_mode((WIDTH, HEIGHT))
 pygame.display.set_caption("Alien Defense - Strategic Stations")
 
-# Load background layers
 layer_images = []
 for i in range(1, 4):
     path = os.path.join("assets", f"layer_{i}.png")
@@ -35,24 +29,21 @@ for i in range(1, 4):
     img = pygame.transform.scale(img, (WIDTH, HEIGHT))
     layer_images.append(img)
 
-# Load images
 station_img = pygame.transform.scale(pygame.image.load("assets/station_1.png"), (150, 150))
 alien_img = pygame.transform.scale(pygame.image.load("assets/alien.png"), (35, 35))
 military_img = pygame.transform.scale(pygame.image.load("assets/military_yellow.png"), (50, 50))
 earth_base_img = pygame.transform.scale(pygame.image.load("assets/resource.png"), (200, 200))
 
-# Earth base position and representation
 earth_base_pos = (WIDTH - 215, 20)
 earth_base = type('EarthBase', (), {'pos': earth_base_pos})()
 
 ui = UIManager((WIDTH, HEIGHT))
 
-# Generate station positions with minimum distances
 def generate_station_positions(count, margin=180, forbidden_zones=None):
     if forbidden_zones is None:
         forbidden_zones = [
-            pygame.Rect(20, 150, 180, 300),  # Info panel area
-            pygame.Rect(WIDTH - 215, 20, 200, 200)  # Earth base area
+            pygame.Rect(20, 150, 180, 300), 
+            pygame.Rect(WIDTH - 215, 20, 200, 200)
         ]
 
     positions = []
@@ -90,20 +81,15 @@ for i, pos in enumerate(positions):
     stations.append(Station(name, pos, population, military, aliens))
     stations[-1].update_damage()
 
-# Initialize base resources
 base_troops = 500
 
-# Game state
 game_start_time = datetime.now()
 game_over = False
 player_won = None
-last_ai_attacks = []  # Track last few attacks for AI memory
-
-# Clock
+last_ai_attacks = [] 
 clock = pygame.time.Clock()
 running = True
 
-# Game loop state
 turn = "ai"
 ai_attack_count = 0
 selected_station = None
@@ -113,34 +99,28 @@ last_ai_attack_station = None
 def check_game_over():
     global game_over, player_won
     
-    # Check if all human stations are destroyed
     if all(s.population <= 0 for s in stations):
         game_over = True
         player_won = False
         return True
     
-    # Check if all aliens are defeated
     if all(s.alien_count <= 0 for s in stations):
         game_over = True
         player_won = True
         return True
     
-    # Check if base troops exhausted and no military left
     if base_troops <= 0 and all(s.military_population <= 0 for s in stations):
         game_over = True
         player_won = False
         return True
     
-    # Check time expiration
     time_elapsed = (datetime.now() - game_start_time).total_seconds()
     if time_elapsed >= GAME_DURATION:
         game_over = True
-        # Determine winner by comparing remaining forces
         total_humans = sum(s.population for s in stations)
         total_aliens = sum(s.alien_count for s in stations)
         original_pop = sum(s.original_population for s in stations)
-        
-        # Player wins if they have significant population advantage
+    
         player_won = (total_humans > total_aliens * 3) or (total_aliens == 0)
         return True
     
@@ -152,7 +132,6 @@ def format_time(seconds):
     return f"{minutes:02d}:{seconds:02d}"
 
 def draw_station_connections():
-    """Draw lines showing station connections (for visualization)"""
     for station in stations:
         if station.alien_count > 0:
             pygame.draw.line(window, (255, 100, 100, 150), 
@@ -160,7 +139,6 @@ def draw_station_connections():
                            (earth_base_pos[0] + 100, earth_base_pos[1] + 100), 2)
             
 def minor_alien_attack(station):
-    """A light symbolic attack used in the first AI wave."""
     if station.population > 0 and station.alien_count > 0:
         factor=random.uniform(0.1, 0.15)  # Light attack factor
         lost = int(factor * station.population)
@@ -178,7 +156,6 @@ def minor_alien_attack(station):
         return True
     return False
 
-# Game Loop
 while running:
     dt = clock.tick(FPS) / 1000.0
 
@@ -226,7 +203,6 @@ while running:
                                 'distance': selected_station.distance_from_base
                             })
                             ui.update_status(f"Sent {reinforcements} troops to {selected_station.name}")
-                            # ui.add_click_effect(selected_station.pos)  # Visual feedback
                             station_center = (
                                 selected_station.pos[0] + Station.WIDTH//2,
                                 selected_station.pos[1] + Station.HEIGHT//2
@@ -234,7 +210,7 @@ while running:
                             ui.add_bomb_effect(station_center)
                             
                             turn = "ai"
-                            ai_delay_timer = time.time() + 1  # 1 second delay for AI turn
+                            ai_delay_timer = time.time() + 1
                         # else:
                         #     ui.update_status("Defense failed - no aliens at station")
                 except ValueError:
@@ -248,8 +224,6 @@ while running:
     time_remaining = max(0, GAME_DURATION - time_elapsed)
     ui.update_timer(int(time_remaining))
 
-
-    # Check game over conditions
     if not game_over and check_game_over():
         if player_won:
             ui.update_status("VICTORY! You successfully defended Earth!")
@@ -360,10 +334,9 @@ while running:
     if turn == "ai" and time.time() > ai_delay_timer and not game_over:
             
         if ai_attack_count == 0:
-            # Initial AI turn: soft attack on every station that has aliens
             for s in stations:
                 if s.population > 0 and s.alien_count > 0:
-                    if minor_alien_attack(s):  # Use soft attack
+                    if minor_alien_attack(s):
                         last_ai_attacks.append(s)
                         if len(last_ai_attacks) > MAX_AI_MEMORY:
                             last_ai_attacks.pop(0)
@@ -389,28 +362,24 @@ while running:
             turn = "player"
             
         else:
-            # Reset attack flags
             for s in stations:
                 s.under_attack = False
 
-            # Get AI decision with memory of last attacks
             ai_station, _ = minimax(stations, 4, False, float('-inf'), float('inf'), earth_base, last_ai_attacks)
 
-            # Find all valid attack targets
             valid_targets = [s for s in stations if s.population > 0 and s.alien_count > 0]
 
-            # Fallback if minimax fails or gives invalid target
             if (not ai_station or
                 ai_station.population <= 0 or
                 ai_station.alien_count <= 0 or
                 ai_station not in valid_targets):
 
                 if len(valid_targets) == 1:
-                    ai_station = valid_targets[0]  # Only one valid target: must attack it
+                    ai_station = valid_targets[0]
                 elif len(valid_targets) > 1:
-                    ai_station = random.choice(valid_targets)  # Random fallback target
+                    ai_station = random.choice(valid_targets)
                 else:
-                    ai_station = None  # No valid targets left
+                    ai_station = None
 
             if ai_station:
                 if alien_attack(ai_station):
@@ -443,54 +412,43 @@ while running:
             turn = "player"
 
 
-    # Update base status
     ui.update_base_resources(base_troops)
 
-    # Update AI suggestion for player
     suggested_station, _ = minimax(stations, 4, True, float('-inf'), float('inf'), earth_base, last_ai_attacks)
     if suggested_station:
         ui.update_ai_suggestion(suggested_station.name, evaluate_station(suggested_station, True, earth_base, last_ai_attacks), suggested_station.alien_count)
 
-    # Draw background
     for layer in layer_images:
         window.blit(layer, (0, 0))
 
     window.blit(earth_base_img, earth_base_pos)
 
-    # Draw station connections (visualization)
     draw_station_connections()
 
-    # Draw stations
     for station in stations:
         x, y = station.pos
         window.blit(station_img, (x, y))
         
-        # Draw station name above the node
         name_surface = station_font.render(station.name, True, (255, 255, 255))
         name_rect = name_surface.get_rect(center=(x + Station.WIDTH // 2, y - 20))
         window.blit(name_surface, name_rect)
         
-        # Draw attack indicator
         if station == last_ai_attack_station:
             pygame.draw.rect(window, (255, 0, 0, 150), (x, y, Station.WIDTH, 5))
         
-        # Draw units
         if station.alien_count > 0:
             window.blit(alien_img, (x + 30, y + 90))
         if station.military_population > 0:
             window.blit(military_img, (x + 70, y + 20))
         
-        # Draw damage indicator
         if station.damage > 0:
             damage_width = int(Station.WIDTH * (station.damage / 100))
             pygame.draw.rect(window, (255, 165, 0), (x, y + Station.HEIGHT - 10, damage_width, 5))
         
-        # Draw distance indicator (faint line)
         pygame.draw.line(window, (100, 100, 255, 50),
                        (x + 75, y + 75),
                        (earth_base_pos[0] + 100, earth_base_pos[1] + 100), 1)
 
-    # Draw game over screen
     if game_over:
         overlay = pygame.Surface((WIDTH, HEIGHT), pygame.SRCALPHA)
         overlay.fill((0, 0, 0, 180))
@@ -505,7 +463,6 @@ while running:
         text_rect = text.get_rect(center=(WIDTH//2, HEIGHT//2))
         window.blit(text, text_rect)
 
-        # Show summary
         font_sm = pygame.font.SysFont('Arial', 24)
         humans = sum(s.population for s in stations)
         aliens = sum(s.alien_count for s in stations)
